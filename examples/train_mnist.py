@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import *
 
 # from efficient_kan import KAN
 from fastkan import FastKAN as KAN
@@ -25,6 +26,19 @@ import torchvision
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+
+def make_mlp(dim_list: List[int], act: Callable[[], nn.Module] = nn.Tanh) -> List[nn.Module]:
+    assert len(dim_list) >= 2
+    sequence: List[nn.Module] = []
+
+    for i, (dim_in, dim_out) in enumerate(zip(dim_list[:-1], dim_list[1:])):
+        sequence.append(nn.Linear(in_features=dim_in, out_features=dim_out))
+        if i < len(dim_list) - 2:  # not last layer
+            sequence.append(act())
+
+    return sequence
+
+count_parameters = lambda model: sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 # Load MNIST
 transform = transforms.Compose(
@@ -40,8 +54,12 @@ trainloader = DataLoader(trainset, batch_size=64, shuffle=True)
 valloader = DataLoader(valset, batch_size=64, shuffle=False)
 
 # Define model
+
 model = KAN([28 * 28, 64, 10])
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = nn.Sequential(*make_mlp(dim_list=[28*28, 576, 10], act=nn.ReLU))
+
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cpu")
 model.to(device)
 # Define optimizer
 optimizer = optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
